@@ -5,6 +5,8 @@
 截图后，悬浮条上会多出一个「标记」按钮。点它，悬浮条上的按钮会原地变成
 「1 天后 / 3 天后 / 7 天后」；选一个，这张截图就会在到期后的第一个 0:00 被自动删除。
 
+> 由DeepSeek、DeepSeek Harness辅助生成代码。
+
 > 基于 LibXposed API 102，运行框架为 [Vector](https://github.com/JingMatrix/Vector)。
 
 ---
