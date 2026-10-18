@@ -1,0 +1,14 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Material 3 基础主题；具体配色走 M3 默认动态色板 -->
+    <style name="Theme.截图管理" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">?attr/isLightTheme</item>
+    </style>
+
+    <!-- 标题栏样式：副标题小一号、更紧凑 -->
+    <style name="Toolbar.Title" parent="TextAppearance.Material3.TitleLarge" />
+    <style name="Toolbar.Subtitle" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+</resources>

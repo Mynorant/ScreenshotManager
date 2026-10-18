@@ -1,0 +1,2 @@
+# 模块入口类（每行一个，全限定名）
+mynorant.screenshot.manager.XposedEntry

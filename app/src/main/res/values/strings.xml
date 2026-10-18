@@ -1,0 +1,37 @@
+<resources>
+    <string name="app_name">截图管理</string>
+    <string name="subtitle_countdown">半城雨岁辞、DS、DSH</string>
+    <string name="module_description">截屏管理器 · API 102 模块</string>
+
+    <string name="section_permission">权限</string>
+    <string name="section_marks">已标记的截图</string>
+
+    <string name="permission_storage">所有文件访问权限</string>
+    <string name="action_grant">去授权</string>
+    <string name="action_granted">已授权</string>
+    <string name="action_cancel_mark">取消</string>
+    <string name="action_about">关于</string>
+
+    <string name="status_enabled">已开启</string>
+    <string name="status_disabled">未开启</string>
+    <string name="status_storage_hint">用于到点自动删除截图</string>
+
+    <string name="marks_empty">还没有标记的截图</string>
+    <string name="toast_canceled">已取消标记</string>
+    <string name="action_delete_all">全部删除</string>
+    <string name="filter_all">全部</string>
+    <string name="filter_1">1 天后</string>
+    <string name="filter_3">3 天后</string>
+    <string name="filter_7">7 天后</string>
+    <string name="delete_confirm_title">确认删除</string>
+    <string name="delete_confirm_message">将删除当前分组的 %1$d 张图片，删除后无法恢复。确定继续？</string>
+    <string name="action_delete">删除</string>
+    <string name="action_cancel">取消</string>
+    <string name="toast_deleted">已删除 %1$d 张图片</string>
+    <string name="toast_pruned">已移除 %1$d 条失效标记</string>
+
+    <string name="repo_url">https://github.com/Mynorant/ScreenshotManager</string>
+    <string name="about_open_repo">打开仓库</string>
+    <string name="about_close">关闭</string>
+    <string name="about_body">适配情况\n当前仅适配 ColorOS 16 上的「截屏」(com.oplus.screenshot) 16.16.2，并在一加 ACE 5（Android 16）上完成验证。\n其他版本、其他机型未经测试；其他系统自带的截屏应用不兼容。\n\n未来方向\n优先适配 ColorOS 设备；其余系统与 ROM 尽力而为。\n\n仓库\nhttps://github.com/Mynorant/ScreenshotManager\n\n作者\n半城雨岁辞（Mynorant）、DS、DSH</string>
+</resources>

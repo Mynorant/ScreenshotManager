@@ -1,0 +1,12 @@
+id=vector-module
+# Vector / libxposed 模块元数据（Java Properties 格式）
+# targetApiVersion >= 101 时，Vector 走 MODERN 加载路径，读取
+# META-INF/xposed/java_init.list 里的入口类。
+minApiVersion=102
+targetApiVersion=102
+# 作用域写死在 scope.list 中，不让用户在管理器里随意扩大
+staticScope=true
+# 先关掉热重载：重装后强制停一次目标进程，避免 hook 状态不明确
+autoHotReload=false
+# hook 抛异常时保护宿主：吞掉异常并继续原调用链
+exceptionMode=protective

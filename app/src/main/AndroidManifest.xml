@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- 倒计时删除要静默删除其他应用创建的图片 -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Toast 提示的前提（这个 ROM 用 POST_NOTIFICATION app-op 闸 Toast） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 到点清理的闹钟与开机恢复 -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Android 11+ 包可见性：Provider 里要按包名取截屏应用的 uid 校验调用方 -->
+    <queries>
+        <package android:name="com.oplus.screenshot" />
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:description="@string/module_description"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.截图管理">
+
+        <receiver
+            android:name=".CleanupReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="mynorant.screenshot.manager.action.CLEANUP" />
+            </intent-filter>
+        </receiver>
+
+        <activity
+            android:name=".ViewerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.截图管理" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            Vector（JingMatrix/Vector，API 102）的模块识别只看 APK 内的文件：
+              META-INF/xposed/java_init.list  入口类
+              META-INF/xposed/module.prop     minApiVersion / targetApiVersion / staticScope
+              META-INF/xposed/scope.list      作用域
+            只有当 targetApiVersion >= 101 时，Vector 才会走 MODERN 加载路径；
+            否则它会去找 assets/xposed_init，找不到就报「找不到可加载的 APK」。
+            这里保留 xposedmodule 只是给其它管理器看的兼容标记，Vector 本身不读它。
+        -->
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+
+        <!-- 模块（跑在截屏进程里）通过它把标记写入本 App；显式广播不受包可见性限制 -->
+        <receiver
+            android:name=".MarkReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="mynorant.screenshot.manager.action.MARK" />
+            </intent-filter>
+        </receiver>
+
+        <provider
+            android:name=".MarkProvider"
+            android:authorities="mynorant.screenshot.manager.marks"
+            android:exported="true" />
+    </application>
+
+</manifest>
