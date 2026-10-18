@@ -1,0 +1,13 @@
+# 统一按 LF 存储；Windows 检出也不转换
+* text=auto eol=lf
+
+# 批处理脚本必须 CRLF，否则在 cmd 下会出问题
+*.bat text eol=crlf
+
+# 二进制，不做换行处理
+*.jar binary
+*.png binary
+*.webp binary
+*.jpg binary
+*.ttf binary
+*.otf binary

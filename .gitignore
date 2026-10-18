@@ -8,11 +8,11 @@
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
 .DS_Store
-/build
+build/
 /captures
 .externalNativeBuild
 .cxx
 local.properties
 
-# 本地临时文件
-.tmp4/
+# 本地临时文件 / 临时仓库
+.tmp*/
