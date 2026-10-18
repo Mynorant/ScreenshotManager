@@ -35,6 +35,7 @@
 ## 未来方向
 
 - 优先跟进 ColorOS 各版本的「截屏」适配；
+- 尝试增加将指定包名的截图转移至专用相册的功能……（画大饼ing）
 - 其他系统 / ROM 尽力而为，不保证。
 
 ## 构建
@@ -84,8 +85,8 @@ META-INF/xposed/scope.list       作用域 com.oplus.screenshot
 app/src/main/java/mynorant/screenshot/manager/
 ├── XposedEntry.java      模块入口与全部 hook
 ├── MarkProvider.java     标记存储（SQLite + ContentProvider）
-├── MarkReceiver.java     广播兜底写入
-├── MarkCleanup.java      到点删除引擎（含安全校验）
+├── MarkReceiver.java     广播
+├── MarkCleanup.java      删除
 ├── CleanupScheduler.java 闹钟调度
 ├── CleanupReceiver.java  到点执行 / 开机重排
 ├── MainActivity.java     主界面
