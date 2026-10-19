@@ -16,3 +16,13 @@ local.properties
 
 # 本地临时文件 / 临时仓库
 .tmp*/
+
+# 发行版说明只在本地维护，手动粘贴到 GitHub Release，不进仓库
+RELEASE_NOTES.md
+
+# 签名相关，绝不提交
+keystore/
+keystore.properties
+*.jks
+*.keystore
+*.p12

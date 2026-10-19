@@ -11,6 +11,9 @@
     <string name="action_granted">已授权</string>
     <string name="action_cancel_mark">取消</string>
     <string name="action_about">关于</string>
+    <string name="action_battery">电池优化</string>
+    <string name="action_permissions">权限</string>
+    <string name="permissions_body">所有文件访问权限：%1$s\n通知权限：%2$s\n\n「所有文件访问权限」用于到点自动删除截图；「电池优化」里把本应用设为不限制，可降低后台被杀的概率。</string>
 
     <string name="status_enabled">已开启</string>
     <string name="status_disabled">未开启</string>
@@ -29,6 +32,8 @@
     <string name="action_cancel">取消</string>
     <string name="toast_deleted">已删除 %1$d 张图片</string>
     <string name="toast_pruned">已移除 %1$d 条失效标记</string>
+    <string name="keep_alive_channel">后台运行</string>
+    <string name="keep_alive_text">正在后台待命，用于接收截图标记</string>
 
     <string name="repo_url">https://github.com/Mynorant/ScreenshotManager</string>
     <string name="about_open_repo">打开仓库</string>

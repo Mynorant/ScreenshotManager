@@ -75,7 +75,7 @@ public final class XposedEntry extends XposedModule {
     private static final boolean INSERT_BUTTON = true;
     private static final String BUTTON_TEXT = "标记";
     /** 构建标记：每次改代码改一下，用来确认设备上跑的是不是新版本。 */
-    private static final String BUILD_TAG = "build-11";
+    private static final String BUILD_TAG = "build-12";
 
     /**
      * 幂等：同一张截图 {@code getAlphaAnimator} 会被调用多次，不加记录会插出多个按钮。
@@ -379,6 +379,13 @@ public final class XposedEntry extends XposedModule {
                     button.setMinimumHeight(reference.getHeight());
                 }
             }
+            // 宿主在动画/未就绪时会把原生按钮设成灰字，复制过来的 ColorStateList 也会是灰的；
+            // 这里直接取宿主自己的「启用态」颜色，避免我们的按钮一直停在灰字上。
+            Integer enabledColor = enabledTextColor(parent);
+            if (enabledColor != null && button instanceof TextView) {
+                ((TextView) button).setTextColor(enabledColor);
+                info("btn>  textColor=" + Integer.toHexString(enabledColor));
+            }
 
             if (button instanceof TextView) {
                 ((TextView) button).setText(BUTTON_TEXT);
@@ -410,6 +417,31 @@ public final class XposedEntry extends XposedModule {
     }
 
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
+
+    /** 取宿主 FloatWindowWidget.getTextColor(true) 的「启用态」颜色。 */
+    private Integer enabledTextColor(Object widget) {
+        if (widget == null) {
+            return null;
+        }
+        try {
+            for (Method method : widget.getClass().getDeclaredMethods()) {
+                if (!"getTextColor".equals(method.getName()) || method.getParameterCount() != 1) {
+                    continue;
+                }
+                if (method.getParameterTypes()[0] != boolean.class) {
+                    continue;
+                }
+                method.setAccessible(true);
+                Object value = method.invoke(widget, true);
+                if (value instanceof Integer) {
+                    return (Integer) value;
+                }
+            }
+        } catch (Throwable t) {
+            info("! 读取启用态文字色失败: " + t);
+        }
+        return null;
+    }
 
     /**
      * 让「模块本体」弹 Toast。
@@ -465,10 +497,14 @@ public final class XposedEntry extends XposedModule {
                 return;
             }
             int converted = 0;
+            Integer enabledColor = enabledTextColor(widget);
             for (TextView button : buttons) {
                 if (converted < DAY_OPTIONS.length) {
                     final int days = DAY_OPTIONS[converted];
                     button.setText(days + " 天后");
+                    if (enabledColor != null) {
+                        button.setTextColor(enabledColor);
+                    }
                     button.setOnClickListener(v -> onPickDays(widget.getContext(), widget, request, days));
                     converted++;
                 } else {
@@ -516,10 +552,51 @@ public final class XposedEntry extends XposedModule {
             info("mark>  dismiss 调用失败: " + t);
         }
     }
-    /** 写入标记：优先 ContentProvider（宿主有 QUERY_ALL_PACKAGES），失败再退回显式广播。 */
+    /** 写入标记：优先 ContentProvider；失败时延迟重试一次，再失败才退回显式广播。 */
     private void commitMark(Context context, View widget, Uri uri, long dateTaken, int days) {
         long due = dueAt(dateTaken, days);
-        boolean written = false;
+        if (writeViaProvider(context, uri, dateTaken, days, due)) {
+            dismissFloating(widget);
+            return;
+        }
+        // 进程可能正好处于被冻结/唤醒的瞬间，稍等再试一次
+        info("mark>  provider 首次失败，1 秒后重试");
+        MAIN.postDelayed(() -> {
+            if (writeViaProvider(context, uri, dateTaken, days, due)) {
+                return;
+            }
+            // Provider 写不进去（进程被系统回收），显式拉起无界面页唤醒进程
+            if (!wakeActivity(context, uri, dateTaken, days, due)) {
+                sendMarkBroadcast(context, uri, dateTaken, days, due);
+            }
+        }, 1000L);
+        dismissFloating(widget);
+    }
+
+    /** 显式启动无界面页，把标记写进数据库后自动结束。 */
+    private boolean wakeActivity(Context context, Uri uri, long dateTaken, int days, long due) {
+        try {
+            Intent intent = new Intent();
+            intent.setComponent(new ComponentName("mynorant.screenshot.manager",
+                    "mynorant.screenshot.manager.WakeActivity"));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                    | Intent.FLAG_ACTIVITY_NO_ANIMATION
+                    | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
+            intent.putExtra("image_uri", uri.toString());
+            intent.putExtra("date_taken", dateTaken);
+            intent.putExtra("days", days);
+            intent.putExtra("due_at", due);
+            intent.putExtra("display_name", displayNameOf(context, uri));
+            context.startActivity(intent);
+            info("mark>  wake activity started  uri=" + uri + "  days=" + days);
+            return true;
+        } catch (Throwable t) {
+            info("mark>  wake activity 失败: " + t);
+            return false;
+        }
+    }
+
+    private boolean writeViaProvider(Context context, Uri uri, long dateTaken, int days, long due) {
         try {
             ContentValues values = new ContentValues();
             values.put("image_uri", uri.toString());
@@ -528,33 +605,75 @@ public final class XposedEntry extends XposedModule {
             values.put("due_at", due);
             values.put("display_name", displayNameOf(context, uri));
             Uri row = context.getContentResolver().insert(MARK_URI, values);
-            written = row != null;
             info("mark>  provider insert  row=" + row + "  uri=" + uri
                     + "  days=" + days + "  dueAt=" + formatTime(due));
+            return row != null;
         } catch (Throwable t) {
-            info("mark>  provider 失败，改走广播: " + t);
+            info("mark>  provider 失败: " + t);
+            return false;
         }
-        if (!written) {
-            try {
-                Intent intent = new Intent(MarkReceiver.ACTION);
-                intent.setComponent(new ComponentName("mynorant.screenshot.manager",
-                        "mynorant.screenshot.manager.MarkReceiver"));
-                intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
-                intent.putExtra(MarkReceiver.EXTRA_URI, uri.toString());
-                intent.putExtra(MarkReceiver.EXTRA_DATE_TAKEN, dateTaken);
-                intent.putExtra(MarkReceiver.EXTRA_DAYS, days);
-                intent.putExtra(MarkReceiver.EXTRA_DUE_AT, due);
-                intent.putExtra(MarkReceiver.EXTRA_NAME, displayNameOf(context, uri));
-                context.sendBroadcast(intent);
-                info("mark>  broadcast sent  uri=" + uri + "  days=" + days);
-            } catch (Throwable t) {
-                error("mark>  发送标记失败", t);
-                toast(context, "标记失败，见日志");
+    }
+
+    private void sendMarkBroadcast(Context context, Uri uri, long dateTaken, int days, long due) {
+        try {
+            Intent intent = new Intent(MarkReceiver.ACTION);
+            intent.setComponent(new ComponentName("mynorant.screenshot.manager",
+                    "mynorant.screenshot.manager.MarkReceiver"));
+            intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+            intent.putExtra(MarkReceiver.EXTRA_URI, uri.toString());
+            intent.putExtra(MarkReceiver.EXTRA_DATE_TAKEN, dateTaken);
+            intent.putExtra(MarkReceiver.EXTRA_DAYS, days);
+            intent.putExtra(MarkReceiver.EXTRA_DUE_AT, due);
+            intent.putExtra(MarkReceiver.EXTRA_NAME, displayNameOf(context, uri));
+            context.sendBroadcast(intent);
+            info("mark>  broadcast sent  uri=" + uri + "  days=" + days);
+        } catch (Throwable t) {
+            error("mark>  发送标记失败", t);
+            toast(context, "标记失败，见日志");
+        }
+        // 无论广播是否送达都落一份盘：App 被系统杀掉时也能在下次启动补录
+        queueMark(context, uri, dateTaken, days, due);
+    }
+
+    /** 把标记写成 Download/ScreenshotManager/sm_mark_*.json，等 App 启动时补录。 */
+    private void queueMark(Context context, Uri uri, long dateTaken, int days, long due) {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+            return;
+        }
+        try {
+            org.json.JSONObject json = new org.json.JSONObject();
+            json.put("image_uri", uri.toString());
+            json.put("date_taken", dateTaken);
+            json.put("days", days);
+            json.put("due_at", due);
+            json.put("display_name", displayNameOf(context, uri));
+
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.MediaColumns.DISPLAY_NAME,
+                    "sm_mark_" + System.currentTimeMillis() + ".json");
+            values.put(MediaStore.MediaColumns.MIME_TYPE, "application/json");
+            values.put(MediaStore.MediaColumns.RELATIVE_PATH,
+                    android.os.Environment.DIRECTORY_DOWNLOADS + "/ScreenshotManager");
+            values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+            Uri item = context.getContentResolver()
+                    .insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+            if (item == null) {
+                info("mark>  落盘失败：insert 返回 null");
                 return;
             }
+            try (java.io.OutputStream out =
+                         context.getContentResolver().openOutputStream(item)) {
+                if (out != null) {
+                    out.write(json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                }
+            }
+            values.clear();
+            values.put(MediaStore.MediaColumns.IS_PENDING, 0);
+            context.getContentResolver().update(item, values, null, null);
+            info("mark>  queued  " + item);
+        } catch (Throwable t) {
+            error("mark>  落盘失败", t);
         }
-        // Toast 由我们的 App 在 Provider/Receiver 里弹，避免受宿主进程限制
-        dismissFloating(widget);
     }
 
     /** 取 MediaStore 里的原始文件名。 */

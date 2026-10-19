@@ -63,10 +63,11 @@ public final class MainActivity extends AppCompatActivity {
 
     private LinearLayout markList;
     private TextView markEmpty;
-    private TextView storageStatus;
     /** 0 = 全部；1/3/7 = 对应天数。 */
     private int filterDays;
     private final List<MarkRow> allRows = new ArrayList<>();
+    /** 主动跳转到系统设置时，不要顺手把自己的任务也移除。 */
+    private boolean launchingExternal;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -75,16 +76,19 @@ public final class MainActivity extends AppCompatActivity {
 
         markList = findViewById(R.id.mark_list);
         markEmpty = findViewById(R.id.mark_empty);
-        storageStatus = findViewById(R.id.storage_status);
 
-        findViewById(R.id.storage_action)
-                .setOnClickListener(v -> openAllFilesSettings());
+        hideFromRecents();
+
 
         com.google.android.material.appbar.MaterialToolbar toolbar =
                 findViewById(R.id.toolbar);
         toolbar.setOnMenuItemClickListener(item -> {
             if (item.getItemId() == R.id.action_about) {
                 showAbout();
+                return true;
+            }
+            if (item.getItemId() == R.id.action_permissions) {
+                showPermissions();
                 return true;
             }
             return false;
@@ -132,9 +136,8 @@ public final class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        refreshPermissionStatus();
         loadMarks();
-        // 打开界面时重新排一次，防止闹钟被系统清掉
+        MarkQueue.importPending(this);        // 打开界面时重新排一次，防止闹钟被系统清掉
         CleanupScheduler.scheduleNext(this);
     }
 
@@ -145,27 +148,59 @@ public final class MainActivity extends AppCompatActivity {
         thumbnailExecutor.shutdownNow();
     }
 
+    /** 离开界面时把任务从最近任务里移除，避免被顺手划掉；进程由前台服务维持。 */
+    @Override
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        if (launchingExternal) {
+            launchingExternal = false;
+            return;
+        }
+        finishAndRemoveTask();
+    }
+
+    private void hideFromRecents() {
+        try {
+            android.app.ActivityManager manager =
+                    getSystemService(android.app.ActivityManager.class);
+            if (manager == null) {
+                return;
+            }
+            for (android.app.ActivityManager.AppTask task : manager.getAppTasks()) {
+                task.setExcludeFromRecents(true);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
     // ------------------------------------------------------------------
     // 权限
     // ------------------------------------------------------------------
 
-    private void refreshPermissionStatus() {
+    /** 权限二级菜单：文件访问、电池优化、通知状态。 */
+    private void showPermissions() {
         boolean storage = allFilesAccess();
-        storageStatus.setText(storage ? R.string.status_enabled : R.string.status_disabled);
-        storageStatus.append(" · ");
-        storageStatus.append(getString(R.string.status_storage_hint));
-        updateActionButton(findViewById(R.id.storage_action), storage);
+        boolean notifications = notificationsEnabled();
+        String message = getString(R.string.permissions_body,
+                getString(storage ? R.string.status_enabled : R.string.status_disabled),
+                getString(notifications ? R.string.status_enabled : R.string.status_disabled));
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.action_permissions)
+                .setMessage(message)
+                // 按钮顺序（左→右）：所有文件、电池优化、关闭
+                .setNegativeButton(R.string.permission_storage,
+                        (dialog, which) -> openAllFilesSettings())
+                .setNeutralButton(R.string.action_battery,
+                        (dialog, which) -> openBatterySettings())
+                .setPositiveButton(R.string.about_close, null)
+                .show();
     }
 
-    private void updateActionButton(android.widget.Button button, boolean granted) {
-        if (button == null) {
-            return;
-        }
-        button.setText(granted ? R.string.action_granted : R.string.action_grant);
-        button.setEnabled(!granted);
+    private boolean notificationsEnabled() {
+        android.app.NotificationManager manager =
+                getSystemService(android.app.NotificationManager.class);
+        return manager != null && manager.areNotificationsEnabled();
     }
-
-
 
     private boolean allFilesAccess() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -175,14 +210,42 @@ public final class MainActivity extends AppCompatActivity {
                 Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
     }
 
+    private void openBatterySettings() {
+        // ColorOS 对 ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS 支持不稳定，逐级降级
+        launchingExternal = true;
+        try {
+            startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:" + getPackageName())));
+            return;
+        } catch (Throwable ignored) {
+        }
+        try {
+            startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+            return;
+        } catch (Throwable ignored) {
+        }
+        try {
+            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + getPackageName())));
+        } catch (Throwable t) {
+            launchingExternal = false;
+            Toast.makeText(this, "打不开电池优化设置", Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private void openAllFilesSettings() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            launchingExternal = true;
             Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
                     Uri.parse("package:" + getPackageName()));
             try {
                 startActivity(intent);
             } catch (Throwable t) {
-                startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+                try {
+                    startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+                } catch (Throwable ignored) {
+                    launchingExternal = false;
+                }
             }
         }
     }

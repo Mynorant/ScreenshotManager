@@ -12,6 +12,9 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- 申请忽略电池优化，降低被省电策略杀掉的概率 -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <!-- Android 11+ 包可见性：Provider 里要按包名取截屏应用的 uid 校验调用方 -->
     <queries>
         <package android:name="com.oplus.screenshot" />
@@ -28,6 +31,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.截图管理">
 
+
+
         <receiver
             android:name=".CleanupReceiver"
             android:exported="false">
@@ -38,6 +43,14 @@
             </intent-filter>
         </receiver>
 
+        <!-- 无界面唤醒页：宿主写库失败时显式启动它来拉起进程 -->
+        <activity
+            android:name=".WakeActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <activity
             android:name=".ViewerActivity"
             android:exported="false"
@@ -45,6 +58,7 @@
 
         <activity
             android:name=".MainActivity"
+            android:excludeFromRecents="true"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
